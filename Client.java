@@ -33,7 +33,7 @@ public class Client {
         channel.connect(new InetSocketAddress(host, port));
 
         // Send key value
-        String sendData = key + command;
+        String sendData = mode + key;
         ByteBuffer buffer = ByteBuffer.wrap(sendData.getBytes(StandardCharsets.US_ASCII));
         while (buffer.hasRemaining()) {
             channel.write(buffer);
