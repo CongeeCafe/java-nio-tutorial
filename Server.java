@@ -10,7 +10,7 @@ import java.util.Iterator;
 import java.util.Set;
 
 public class Server {
-
+    
     public static void main(String args[]) throws IOException, InterruptedException {
         ServerSocketChannel channel = ServerSocketChannel.open();
         // Bind to random open port
@@ -49,15 +49,27 @@ public class Server {
 
                     boolean closed = false;
 
-                    int result;
+                    int read = 0;
+                    int readTotal = 0;
                     do {
-                        result = sc.read(keyBuffer);
-                        if (result == -1) {
+                        read = sc.read(keyBuffer);
+                        readTotal += read;
+                        if (read < 0) {
                             closed = true;
+                            break;
                         }
-                    } while (result > 0);
+                    } while (read > 0);
 
-                    String receivedMessage = new String(keyBuffer.array(), "ASCII");
+                    if (closed) {
+                        if (channelMap.get(sc.getRemoteAddress().toString()) != null) {
+                            channelMap.get(sc.getRemoteAddress().toString()).close();
+                            channelMap.remove(sc.getRemoteAddress().toString());
+                        }
+                        sc.close();
+                        break;
+                    }
+
+                    String receivedMessage = new String(keyBuffer.array(), 0, readTotal);
                     char receivedCommand = (receivedMessage.charAt(0));
                     String receivedKey = (receivedMessage.substring(1, receivedMessage.length()));
 
@@ -74,34 +86,25 @@ public class Server {
                     }
                     // Init client upload
                     else if (receivedCommand == 'P') {
-                        SocketChannel scReceiver = keyMap.get(receivedKey);
-                        keyMap.remove(receivedKey);
-                        if (scReceiver == null) {
-                            System.out.println("No matching downloader found");
-                            break;
-                        }
-                        keyBuffer.flip();
-                        channelMap.put(sc.getRemoteAddress().toString(), scReceiver);
-                        sc.write(keyBuffer);
+                        keyMap.put(receivedKey, sc);
                     }
                     // Init client download
                     else if (receivedCommand == 'G') {
-                        keyMap.put(receivedKey, sc);
+                        SocketChannel scSender = keyMap.get(receivedKey);
+                        keyMap.remove(receivedKey);
+                        if (scSender == null) {
+                            System.out.println("No matching uploader found " + receivedKey);
+                            break;
+                        }
+                        keyBuffer.flip();
+                        channelMap.put(scSender.getRemoteAddress().toString(), sc);
+                        scSender.write(keyBuffer);
                     }
 
-                    if (closed) {
-                        if (channelMap.get(sc.getRemoteAddress().toString()) != null) {
-                            channelMap.get(sc.getRemoteAddress().toString()).close();
-                            channelMap.remove(sc.getRemoteAddress().toString());
-                        }
-                        sc.close();
-                    }
                 }
 
                 it.remove();
             }
-
         }
-
     }
 }
